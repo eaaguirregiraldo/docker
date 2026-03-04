@@ -1,0 +1,29 @@
+{
+  "family": "laravel-jwt-app-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::458470126884:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "laravel-jwt-app",
+      "image": "458470126884.dkr.ecr.us-east-1.amazonaws.com/laravel-jwt-app:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/laravel-jwt-app",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
