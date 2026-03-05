@@ -207,3 +207,4 @@ aws ecs update-service \
 ## 11. Trigger
 
 - Commit de prueba para disparar nuevamente el workflow de CD.
+- Commit de prueba adicional para validar disparo de CD (2026-03-05).
