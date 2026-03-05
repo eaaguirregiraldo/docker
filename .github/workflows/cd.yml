@@ -29,16 +29,18 @@ jobs:
 
       - name: Validate required deployment secrets
         env:
+          APP_KEY: ${{ secrets.APP_KEY }}
           APP_URL: ${{ secrets.APP_URL }}
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ secrets.DB_PORT }}
           DB_DATABASE: ${{ secrets.DB_DATABASE }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           set -euo pipefail
           missing=0
-          for v in APP_URL DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD; do
+          for v in APP_KEY APP_URL DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD JWT_SECRET; do
             if [ -z "${!v}" ]; then
               echo "Missing required secret: $v"
               missing=1
@@ -73,6 +75,7 @@ jobs:
           environment-variables: |
             APP_ENV=production
             APP_DEBUG=false
+            APP_KEY=${{ secrets.APP_KEY }}
             APP_URL=${{ secrets.APP_URL }}
             LOG_CHANNEL=stderr
             DB_CONNECTION=mysql
@@ -81,6 +84,7 @@ jobs:
             DB_DATABASE=${{ secrets.DB_DATABASE }}
             DB_USERNAME=${{ secrets.DB_USERNAME }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
 
       - name: Deploy to Amazon ECS
         id: deploy
