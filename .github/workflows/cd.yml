@@ -27,6 +27,28 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
+      - name: Validate required deployment secrets
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in APP_URL DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "Missing required secret: $v"
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            echo "Configure required secrets in GitHub Actions before deploy."
+            exit 1
+          fi
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -96,6 +118,7 @@ jobs:
 
       - name: Run database migrations
         run: |
+          set -euo pipefail
           TASK_ARN=$(aws ecs run-task \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
             --launch-type FARGATE \
@@ -121,6 +144,6 @@ jobs:
               --cluster "${{ secrets.ECS_CLUSTER }}" \
               --tasks "$TASK_ARN" \
               --region "${{ env.AWS_REGION }}" \
-              --query 'tasks[0].containers[0].reason'
+              --query 'tasks[0].{stoppedReason:stoppedReason,container:containers[0]}'
             exit 1
           fi
