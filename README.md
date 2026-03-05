@@ -203,3 +203,7 @@ aws ecs update-service \
 - Nunca dejes `DB_PASSWORD` plano en task definition; usa AWS Secrets Manager.
 - Agrega ALB + HTTPS (ACM) para trafico publico.
 - Define `APP_KEY` y `JWT_SECRET` como secretos de entorno en ECS.
+
+## 11. Trigger
+
+- Commit de prueba para disparar nuevamente el workflow de CD.
