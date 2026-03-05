@@ -210,3 +210,4 @@ aws ecs update-service \
 - Commit de prueba adicional para validar disparo de CD (2026-03-05).
 - Commit de prueba adicional para relanzar CD tras ajuste de permisos IAM.
 - Commit de prueba adicional para validar CD con RDS configurado.
+- Commit de prueba adicional para relanzar CI/CD con APP_KEY y JWT_SECRET configurados.
