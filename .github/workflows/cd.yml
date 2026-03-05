@@ -3,6 +3,7 @@ name: CD
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
@@ -47,11 +48,79 @@ jobs:
           task-definition: .aws/task-definition.json
           container-name: ${{ env.ECS_CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
+          environment-variables: |
+            APP_ENV=production
+            APP_DEBUG=false
+            APP_URL=${{ secrets.APP_URL }}
+            LOG_CHANNEL=stderr
+            DB_CONNECTION=mysql
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_DATABASE=${{ secrets.DB_DATABASE }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
 
       - name: Deploy to Amazon ECS
+        id: deploy
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ secrets.ECS_SERVICE }}
           cluster: ${{ secrets.ECS_CLUSTER }}
           wait-for-service-stability: true
+
+      - name: Read ECS network config
+        id: ecs-config
+        run: |
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --services "${{ secrets.ECS_SERVICE }}" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          SUBNETS=$(aws ecs describe-services \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --services "${{ secrets.ECS_SERVICE }}" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets' \
+            --output json | jq -r 'join(",")')
+          SECURITY_GROUPS=$(aws ecs describe-services \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --services "${{ secrets.ECS_SERVICE }}" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' \
+            --output json | jq -r 'join(",")')
+          echo "task_def_arn=$TASK_DEF_ARN" >> "$GITHUB_OUTPUT"
+          echo "subnets=$SUBNETS" >> "$GITHUB_OUTPUT"
+          echo "security_groups=$SECURITY_GROUPS" >> "$GITHUB_OUTPUT"
+
+      - name: Run database migrations
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.ecs-config.outputs.task_def_arn }}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.ecs-config.outputs.subnets }}],securityGroups=[${{ steps.ecs-config.outputs.security_groups }}],assignPublicIp=ENABLED}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"${{ env.ECS_CONTAINER_NAME }}\",\"command\":[\"php\",\"artisan\",\"migrate\",\"--force\"]}]}" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          aws ecs wait tasks-stopped \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --tasks "$TASK_ARN" \
+            --region "${{ env.AWS_REGION }}"
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --tasks "$TASK_ARN" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Migration task failed with exit code $EXIT_CODE"
+            aws ecs describe-tasks \
+              --cluster "${{ secrets.ECS_CLUSTER }}" \
+              --tasks "$TASK_ARN" \
+              --region "${{ env.AWS_REGION }}" \
+              --query 'tasks[0].containers[0].reason'
+            exit 1
+          fi
