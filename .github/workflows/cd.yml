@@ -6,8 +6,8 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: laravel-jwt-api
-  ECS_CONTAINER_NAME: laravel-jwt-api
+  ECR_REPOSITORY: laravel-jwt-app
+  ECS_CONTAINER_NAME: laravel-jwt-app
 
 jobs:
   deploy:
